@@ -125,6 +125,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
 
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0") // 调试用
+    implementation("com.google.code.gson:gson:2.10.1")
+        // 其他依赖
+    implementation("com.volcengine:volcengine-java-sdk-ark-runtime:0.2.47") // 替换为最新版本
+// 添加BouncyCastle依赖（解决加密库缺失问题）
+    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
     // 测试依赖
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

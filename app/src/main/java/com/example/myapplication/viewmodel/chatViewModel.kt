@@ -1,7 +1,9 @@
 package com.example.myapplication.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.repository.ChatRepository
 import com.example.myapplication.model.Message
 import com.example.myapplication.model.MessageRole
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,26 +11,80 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class ChatViewModel : ViewModel() {
-    // MVI 核心：用 StateFlow 管理界面状态（消息列表）
-    // _uiState 是私有可变的，仅 ViewModel 内部可修改
-    private val _uiState = MutableStateFlow<List<Message>>(
-        // 静态模拟数据（第一周用，后续替换为真实数据）
-        listOf(
-            Message(role = MessageRole.AI, content = "你好！我是即梦AI，有什么可以帮你？"),
-            Message(role = MessageRole.USER, content = "请问如何设计一个AI对话App？"),
-            Message(role = MessageRole.AI, content = "首先需要确定核心功能，比如对话流设计、AI能力集成、本地存储等～")
+
+
+class ChatViewModel(
+    private val repository: ChatRepository = ChatRepository()
+) : ViewModel() {
+    private val _uiState = MutableStateFlow<ChatUiState>(
+        ChatUiState.Success(
+            listOf(Message(role = MessageRole.AI, content = "你好！我是豆包AI，有什么可以帮你？"))
         )
     )
-    // uiState 是公开不可变的，仅暴露给界面层观察
-    val uiState: StateFlow<List<Message>> = _uiState.asStateFlow()
+    val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // 第一周：静态发送逻辑（仅模拟“添加一条用户消息”，后续替换为真实网络请求）
+    // 模型名称使用官方示例中的（确保存在）
+    private val MODEL_NAME = "doubao-seed-1-6-lite-251015"
+
+    private var lastSentMessage: String? = null
+
     fun sendMessage(content: String) {
+        if (content.trim().isEmpty()) return
+        lastSentMessage = content
+
         viewModelScope.launch {
-            val newMessage = Message(role = MessageRole.USER, content = content)
-            // 更新消息列表（添加新消息到原列表末尾）
-            _uiState.value = _uiState.value + newMessage
+            val currentState = _uiState.value
+            val currentMessages = when (currentState) {
+                is ChatUiState.Success -> currentState.messages
+                is ChatUiState.Loading -> currentState.messages
+                is ChatUiState.Error -> currentState.messages
+            }
+
+            // 添加用户消息并进入加载状态
+            val userMessage = Message(role = MessageRole.USER, content = content)
+            val newMessages = currentMessages + userMessage
+            _uiState.value = ChatUiState.Loading(newMessages)
+
+            // 调用Repository（官方SDK）
+            val result = repository.getAiResponse(
+                model = MODEL_NAME,
+                userMessage = content
+            )
+
+            if (result.isSuccess) {
+                // 成功：添加AI回复
+                val aiMessage = Message(
+                    role = MessageRole.AI,
+                    content = result.getOrThrow()
+                )
+                _uiState.value = ChatUiState.Success(newMessages + aiMessage)
+            } else {
+                // 失败：显示错误
+                val errorMsg = result.exceptionOrNull()?.message ?: "调用失败"
+                updateErrorState(newMessages, errorMsg)
+                Log.e("ChatViewModel", "AI调用失败", result.exceptionOrNull())
+            }
         }
+    }
+
+    fun retryLastMessage() {
+        lastSentMessage?.let { sendMessage(it) }
+    }
+
+    private fun updateErrorState(currentMessages: List<Message>, errorMsg: String) {
+        val errorMessage = Message(
+            role = MessageRole.AI,
+            content = "出错了：$errorMsg"
+        )
+        _uiState.value = ChatUiState.Error(
+            messages = currentMessages + errorMessage,
+            errorMessage = errorMsg
+        )
+    }
+
+    // 页面销毁时关闭服务
+    override fun onCleared() {
+        super.onCleared()
+        repository.shutdown()
     }
 }
