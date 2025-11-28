@@ -22,10 +22,11 @@ fun ChatMessageEntity.toMessage(): Message {
     )
 }
 
+// 优化 toEntity() 中的 id 处理
 fun Message.toEntity(conversationId: String = "default"): ChatMessageEntity {
     return ChatMessageEntity(
-        id = if (this.id.isEmpty()) 0 else this.id.toLongOrNull() ?: 0,
-        role = this.role.name,
+        id = this.id.toLongOrNull() ?: 0, // 直接转换，空字符串会转为 0（配合 autoGenerate = true）
+        role = this.role.name, // 确保存储的是枚举名称（USER/AI）
         content = this.content,
         timestamp = this.time,
         conversationId = conversationId
