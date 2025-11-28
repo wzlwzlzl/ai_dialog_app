@@ -6,6 +6,7 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole
 import com.volcengine.ark.runtime.service.ArkService
 import com.example.myapplication.data.dao.ChatMessageDao
 import com.example.myapplication.model.ChatMessageEntity
+import com.example.myapplication.model.ConversationSummary
 import com.example.myapplication.model.Message
 import com.example.myapplication.model.toEntity
 import com.example.myapplication.model.toMessage
@@ -23,6 +24,10 @@ class ChatRepository(
             .apiKey("54d5a7cb-ffe2-4c77-b72f-90788cf7f795") // 替换为有效API密钥
             .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
             .build()
+    }
+
+    fun getConversationSummaries(): Flow<List<ConversationSummary>> {
+        return chatMessageDao?.getConversationSummaries() ?: emptyFlow()
     }
 
     // 获取历史消息：使用安全调用，为空时返回空流

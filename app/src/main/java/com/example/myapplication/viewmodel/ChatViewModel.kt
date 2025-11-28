@@ -4,8 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.repository.ChatRepository
+import com.example.myapplication.model.ConversationSummary
 import com.example.myapplication.model.Message
 import com.example.myapplication.model.MessageRole
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,26 +29,29 @@ class ChatViewModel(
 
     // 模型名称使用官方示例中的（确保存在）
     private val MODEL_NAME = "doubao-seed-1-6-lite-251015"
-    private val CONVERSATION_ID = "default"
+    private val DEFAULT_CONVERSATION_ID = "default"
 
     private var lastSentMessage: String? = null
+    private var historyJob: Job? = null
+
+    private val _currentConversationId = MutableStateFlow(DEFAULT_CONVERSATION_ID)
+    val currentConversationId: StateFlow<String> = _currentConversationId.asStateFlow()
+
+    private val _conversationSummaries = MutableStateFlow<List<ConversationSummary>>(emptyList())
+    val conversationSummaries: StateFlow<List<ConversationSummary>> = _conversationSummaries.asStateFlow()
 
     init {
-        // 加载历史消息
-        loadHistoryMessages()
+        observeConversation(DEFAULT_CONVERSATION_ID)
+        observeConversationSummaries()
     }
 
     // 加载历史消息
-    private fun loadHistoryMessages() {
-        viewModelScope.launch {
-            repository.getHistoryMessages(CONVERSATION_ID).collectLatest { messages ->
+    private fun observeConversation(conversationId: String) {
+        historyJob?.cancel()
+        historyJob = viewModelScope.launch {
+            repository.getHistoryMessages(conversationId).collectLatest { messages ->
                 if (messages.isEmpty()) {
-                    // 如果没有历史消息，显示欢迎消息
-                    val welcomeMessage = Message(
-                        role = MessageRole.AI,
-                        content = "你好！我是豆包AI，有什么可以帮你？"
-                    )
-                    _uiState.value = ChatUiState.Success(listOf(welcomeMessage))
+                    showWelcomeMessage()
                 } else {
                     _uiState.value = ChatUiState.Success(messages)
                 }
@@ -54,9 +59,18 @@ class ChatViewModel(
         }
     }
 
+    private fun observeConversationSummaries() {
+        viewModelScope.launch {
+            repository.getConversationSummaries().collectLatest { summaries ->
+                _conversationSummaries.value = summaries
+            }
+        }
+    }
+
     fun sendMessage(content: String) {
         if (content.trim().isEmpty()) return
         lastSentMessage = content
+        val conversationId = _currentConversationId.value
 
         viewModelScope.launch {
             val currentState = _uiState.value
@@ -72,7 +86,7 @@ class ChatViewModel(
             _uiState.value = ChatUiState.Loading(newMessages)
 
             // 保存用户消息到本地数据库
-            repository.saveMessage(userMessage, CONVERSATION_ID)
+            repository.saveMessage(userMessage, conversationId)
 
             // 调用Repository（官方SDK）
             val result = repository.getAiResponse(
@@ -87,7 +101,7 @@ class ChatViewModel(
                     content = result.getOrThrow()
                 )
                 // 保存AI消息到本地数据库
-                repository.saveMessage(aiMessage, CONVERSATION_ID)
+                repository.saveMessage(aiMessage, conversationId)
                 _uiState.value = ChatUiState.Success(newMessages + aiMessage)
             } else {
                 // 失败：显示错误
@@ -105,14 +119,22 @@ class ChatViewModel(
     // 清除当前对话
     fun clearCurrentConversation() {
         viewModelScope.launch {
-            repository.clearConversation(CONVERSATION_ID)
+            repository.clearConversation(_currentConversationId.value)
             // 显示欢迎消息
-            val welcomeMessage = Message(
-                role = MessageRole.AI,
-                content = "你好！我是豆包AI，有什么可以帮你？"
-            )
-            _uiState.value = ChatUiState.Success(listOf(welcomeMessage))
+            showWelcomeMessage()
         }
+    }
+
+    fun selectConversation(conversationId: String) {
+        if (conversationId == _currentConversationId.value) return
+        _currentConversationId.value = conversationId
+        observeConversation(conversationId)
+    }
+
+    fun startNewConversation() {
+        val newId = "conv-${System.currentTimeMillis()}"
+        _currentConversationId.value = newId
+        observeConversation(newId)
     }
 
     private fun updateErrorState(currentMessages: List<Message>, errorMsg: String) {
@@ -124,6 +146,14 @@ class ChatViewModel(
             messages = currentMessages + errorMessage,
             errorMessage = errorMsg
         )
+    }
+
+    private fun showWelcomeMessage() {
+        val welcomeMessage = Message(
+            role = MessageRole.AI,
+            content = "你好！我是豆包AI，有什么可以帮你？"
+        )
+        _uiState.value = ChatUiState.Success(listOf(welcomeMessage))
     }
 
     // 页面销毁时关闭服务
