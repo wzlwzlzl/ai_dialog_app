@@ -4,26 +4,68 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole
 import com.volcengine.ark.runtime.service.ArkService
+import com.example.myapplication.data.dao.ChatMessageDao
+import com.example.myapplication.model.ChatMessageEntity
+import com.example.myapplication.model.Message
+import com.example.myapplication.model.toEntity
+import com.example.myapplication.model.toMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-class ChatRepository {
+class ChatRepository(
+    private val chatMessageDao: ChatMessageDao? = null // 设为可空并提供默认值
+) {
     private val arkService by lazy {
         ArkService.builder()
-            .apiKey("54d5a7cb-ffe2-4c77-b72f-90788cf7f795") // 替换为你的有效API密钥
+            .apiKey("54d5a7cb-ffe2-4c77-b72f-90788cf7f795") // 替换为有效API密钥
             .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
             .build()
     }
 
-    // 明确返回类型为Result<String>，不依赖编译器推断
+    // 获取历史消息：使用安全调用，为空时返回空流
+    fun getHistoryMessages(conversationId: String = "default"): Flow<List<Message>> {
+        return chatMessageDao?.getMessagesByConversationId(conversationId)
+            ?.map { entities -> entities.map { it.toMessage() } }
+            ?: emptyFlow() // 为空时返回空流
+    }
+
+    // 保存单条消息：使用安全调用，为空时不执行操作
+    suspend fun saveMessage(message: Message, conversationId: String = "default") {
+        withContext(Dispatchers.IO) {
+            chatMessageDao?.insertMessage(message.toEntity(conversationId))
+        }
+    }
+
+    // 保存多条消息：使用安全调用，为空时不执行操作
+    suspend fun saveMessages(messages: List<Message>, conversationId: String = "default") {
+        withContext(Dispatchers.IO) {
+            chatMessageDao?.insertMessages(messages.map { it.toEntity(conversationId) })
+        }
+    }
+
+    // 清除指定对话：使用安全调用，为空时不执行操作
+    suspend fun clearConversation(conversationId: String = "default") {
+        withContext(Dispatchers.IO) {
+            chatMessageDao?.deleteMessagesByConversationId(conversationId)
+        }
+    }
+
+    // 清除所有消息：使用安全调用，为空时不执行操作
+    suspend fun clearAllMessages() {
+        withContext(Dispatchers.IO) {
+            chatMessageDao?.deleteAllMessages()
+        }
+    }
+
+    // AI响应获取（已有代码）
     suspend fun getAiResponse(model: String, userMessage: String): Result<String> {
-        // 1. 定义一个临时变量，明确类型为Result<String>
         var result: Result<String> = Result.failure(Exception("初始化错误"))
 
-        // 2. 在IO线程执行网络请求，不直接返回withContext的结果
         withContext(Dispatchers.IO) {
             try {
-                // 构建消息
                 val messages = listOf(
                     ChatMessage.builder()
                         .role(ChatMessageRole.USER)
@@ -31,28 +73,21 @@ class ChatRepository {
                         .build()
                 )
 
-                // 构建请求
                 val request = ChatCompletionRequest.builder()
                     .model(model)
                     .messages(messages)
                     .build()
 
-                // 调用SDK
                 val response = arkService.createChatCompletion(request)
-
-                // 解析结果（强制转换为String，确保类型）
                 val aiContent: String = response.choices.firstOrNull()?.message?.content?.toString()
                     ?: "未获取到回复"
 
-                // 赋值成功结果（明确类型）
                 result = Result.success(aiContent)
             } catch (e: Exception) {
-                // 赋值失败结果（明确类型）
                 result = Result.failure(e)
             }
         }
 
-        // 3. 直接返回明确类型的result变量
         return result
     }
 
