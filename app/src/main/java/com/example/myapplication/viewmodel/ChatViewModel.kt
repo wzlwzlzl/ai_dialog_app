@@ -14,9 +14,15 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val repository: ChatRepository
-
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow<ChatUiState>(ChatUiState.Loading(emptyList()))
+
+    constructor() : this(ChatRepository())
+    // 在ChatViewModel中，确认初始状态正确
+    private val _uiState = MutableStateFlow<ChatUiState>(
+        ChatUiState.Success(
+            listOf(Message(role = MessageRole.AI, content = "你好！我是豆包AI，有什么可以帮你？"))
+        )
+    )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     // 模型名称使用官方示例中的（确保存在）
