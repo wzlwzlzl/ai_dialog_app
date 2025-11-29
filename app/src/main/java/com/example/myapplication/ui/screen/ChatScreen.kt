@@ -197,6 +197,7 @@
 //}
 package com.example.myapplication.ui.screen
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -469,6 +470,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 }
+@SuppressLint("ViewModelConstructorInComposable")
 @Preview(showBackground = true, device = "id:pixel_5")
 @Composable
 fun ChatScreenPreview() {
