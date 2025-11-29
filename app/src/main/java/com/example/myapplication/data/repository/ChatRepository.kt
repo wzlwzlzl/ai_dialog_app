@@ -5,14 +5,15 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessage
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole
 import com.volcengine.ark.runtime.service.ArkService
 import com.example.myapplication.data.dao.ChatMessageDao
-import com.example.myapplication.model.ChatMessageEntity
 import com.example.myapplication.model.ConversationSummary
 import com.example.myapplication.model.Message
+import com.example.myapplication.model.MessageRole
 import com.example.myapplication.model.toEntity
 import com.example.myapplication.model.toMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -65,18 +66,35 @@ class ChatRepository(
         }
     }
 
-    // AI响应获取（已有代码）
-    suspend fun getAiResponse(model: String, userMessage: String): Result<String> {
+    // AI响应获取
+    suspend fun getAiResponse(
+        model: String,
+        userMessage: String,
+        conversationId: String = "default"
+    ): Result<String> {
         var result: Result<String> = Result.failure(Exception("初始化错误"))
 
         withContext(Dispatchers.IO) {
             try {
-                val messages = listOf(
+                // 1. 获取最近的10条历史消息
+                val history = getHistoryMessages(conversationId).first().takeLast(10)
+
+                // 2. 将历史消息转换为API需要的格式
+                val historyMessages = history.map {
                     ChatMessage.builder()
-                        .role(ChatMessageRole.USER)
-                        .content(userMessage)
+                        .role(if (it.role == MessageRole.USER) ChatMessageRole.USER else ChatMessageRole.ASSISTANT)
+                        .content(it.content)
                         .build()
-                )
+                }
+
+                // 3. 创建当前用户消息
+                val currentUserMessage = ChatMessage.builder()
+                    .role(ChatMessageRole.USER)
+                    .content(userMessage)
+                    .build()
+
+                // 4. 组合历史消息和当前消息
+                val messages = historyMessages + currentUserMessage
 
                 val request = ChatCompletionRequest.builder()
                     .model(model)

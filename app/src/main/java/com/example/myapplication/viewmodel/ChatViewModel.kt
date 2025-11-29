@@ -91,7 +91,8 @@ class ChatViewModel(
             // 调用Repository（官方SDK）
             val result = repository.getAiResponse(
                 model = MODEL_NAME,
-                userMessage = content
+                userMessage = content,
+                conversationId = conversationId
             )
 
             if (result.isSuccess) {
