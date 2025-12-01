@@ -48,7 +48,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+<<<<<<< HEAD
 
+=======
+>>>>>>> 68da817e19f29c303fd83e388bd689dc57e87cd1
     LaunchedEffect(Unit) {
         drawerState.open()
     }
