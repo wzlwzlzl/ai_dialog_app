@@ -37,7 +37,6 @@ import java.util.Date
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
-    // 监听来自 ViewModel 的 UI 状态
     val uiState by viewModel.uiState.collectAsState()
     val conversationSummaries by viewModel.conversationSummaries.collectAsState()
     val currentConversationId by viewModel.currentConversationId.collectAsState()
@@ -49,25 +48,27 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        drawerState.open()
+    }
+
     val dateFormatter = remember {
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
     }
 
-    // 从不同的 UI 状态中提取消息列表
     val messageList = when (uiState) {
         is ChatUiState.Success -> (uiState as ChatUiState.Success).messages
         is ChatUiState.Loading -> (uiState as ChatUiState.Loading).messages
         is ChatUiState.Error -> (uiState as ChatUiState.Error).messages
     }
 
-    // 当消息列表或状态变化时，自动滚动到底部
     LaunchedEffect(uiState) {
         if (messageList.isNotEmpty()) {
             listState.scrollToItem(messageList.lastIndex)
         }
     }
 
-    // 隐藏键盘的函数
     val hideKeyboard = {
         focusManager.clearFocus()
         keyboardController?.hide()
@@ -130,128 +131,63 @@ fun ChatScreen(viewModel: ChatViewModel) {
             }
         }
     ) {
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            text = if (isImageMode) "即梦AI对话（图片生成）" else "即梦AI对话"
-                        )
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "打开历史对话"
-                            )
-                        }
-                    },
-                    actions = {
-                        // 文生图模式切换按钮（这里复用 Send 图标，避免 Image 图标依赖缺失）
-                        IconButton(onClick = { viewModel.toggleImageMode() }) {
-                            Icon(
-                                imageVector = Icons.Default.Photo,
-                                contentDescription = "切换文生图模式",
-                                tint = if (isImageMode) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
-                        IconButton(onClick = { viewModel.clearCurrentConversation() }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "清除对话"
-                            )
-                        }
-                    }
-                )
-            },
-            bottomBar = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline,
-                            shape = MaterialTheme.shapes.small
-                        )
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 4.dp),
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = {
-                            Text(
-                                text = if (isImageMode) "输入文生图提示词..." else "输入消息..."
-                            )
-                        },
-                        maxLines = 3,
-                        singleLine = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        ),
-                        shape = MaterialTheme.shapes.small,
-                        // 在加载状态时禁用输入框
-                        enabled = uiState !is ChatUiState.Loading
+        // 使用 Column 代替 Scaffold 来确保 TopAppBar 始终固定在顶部
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 固定的 TopAppBar
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = if (isImageMode) "即梦AI对话(图片生成)" else "即梦AI对话"
                     )
-
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank() && uiState !is ChatUiState.Loading) {
-                                if (isImageMode) {
-                                    viewModel.sendImage(inputText, context)
-                                } else {
-                                    viewModel.sendMessage(inputText)
-                                }
-                                inputText = ""
-                                hideKeyboard()
-                            }
-                        },
-                        // 只有在输入框非空且不在加载状态时才启用发送按钮
-                        enabled = inputText.isNotBlank() && uiState !is ChatUiState.Loading
-                    ) {
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
                         Icon(
-                            imageVector = Icons.Default.Send,
-                            contentDescription = if (isImageMode) "生成图片" else "发送消息",
-                            tint = if (inputText.isNotBlank() && uiState !is ChatUiState.Loading)
-                                MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "打开历史对话"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.toggleImageMode() }) {
+                        Icon(
+                            imageVector = Icons.Default.Photo,
+                            contentDescription = "切换文生图模式",
+                            tint = if (isImageMode) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                    }
+                    IconButton(onClick = { viewModel.clearCurrentConversation() }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "清除对话"
                         )
                     }
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        ) { innerPadding ->
-            // 点击空白区域隐藏键盘
+            )
+
+            // 消息列表区域
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .clickable { hideKeyboard() }
             ) {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
+                    modifier = Modifier.fillMaxSize(),
                     state = listState,
-                    contentPadding = PaddingValues(bottom = 16.dp)
+                    contentPadding = PaddingValues(bottom = 16.dp, top = 8.dp)
                 ) {
-                    // 显示消息列表
                     items(messageList) { message ->
                         ChatBubble(message = message)
                     }
 
-                    // 如果是加载状态，显示 "AI正在输入..."
                     if (uiState is ChatUiState.Loading) {
                         item {
                             Row(
@@ -270,7 +206,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         }
                     }
 
-                    // 如果是错误状态，显示错误信息和重试按钮
                     if (uiState is ChatUiState.Error) {
                         item {
                             Row(
@@ -298,6 +233,65 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     }
                 }
             }
+
+            // 底部输入栏 - 紧贴键盘上方
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(8.dp)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = MaterialTheme.shapes.small
+                    )
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp),
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = {
+                        Text(
+                            text = if (isImageMode) "输入文生图提示词..." else "输入消息..."
+                        )
+                    },
+                    maxLines = 3,
+                    singleLine = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
+                    shape = MaterialTheme.shapes.small,
+                    enabled = uiState !is ChatUiState.Loading
+                )
+
+                IconButton(
+                    onClick = {
+                        if (inputText.isNotBlank() && uiState !is ChatUiState.Loading) {
+                            if (isImageMode) {
+                                viewModel.sendImage(inputText, context)
+                            } else {
+                                viewModel.sendMessage(inputText)
+                            }
+                            inputText = ""
+                            hideKeyboard()
+                        }
+                    },
+                    enabled = inputText.isNotBlank() && uiState !is ChatUiState.Loading
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = if (isImageMode) "生成图片" else "发送消息",
+                        tint = if (inputText.isNotBlank() && uiState !is ChatUiState.Loading)
+                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
         }
     }
 }
@@ -306,7 +300,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
 @Preview(showBackground = true, device = "id:pixel_5")
 @Composable
 fun ChatScreenPreview() {
-    val previewRepository = ChatRepository() // 现在可以无参构造了
+    val previewRepository = ChatRepository()
     val previewViewModel = ChatViewModel(previewRepository)
     MaterialTheme {
         ChatScreen(viewModel = previewViewModel)

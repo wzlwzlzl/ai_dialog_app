@@ -47,6 +47,9 @@ class ChatViewModel(
     private val _isImageMode = MutableStateFlow(false)
     val isImageMode: StateFlow<Boolean> = _isImageMode.asStateFlow()
 
+    private val conversationTitleCache = mutableMapOf<String, String>()
+    private val titleMaxLength = 20
+
     init {
         observeConversation(DEFAULT_CONVERSATION_ID)
         observeConversationSummaries()
@@ -78,7 +81,24 @@ class ChatViewModel(
     private fun observeConversationSummaries() {
         viewModelScope.launch {
             repository.getConversationSummaries().collectLatest { summaries ->
-                _conversationSummaries.value = summaries
+                val processed = mutableListOf<ConversationSummary>()
+                for (summary in summaries) {
+                    val originalTitle = summary.title.orEmpty()
+                    val cached = conversationTitleCache[summary.conversationId]
+                    val finalTitle = when {
+                        cached != null -> cached
+                        originalTitle.isBlank() -> originalTitle
+                        originalTitle.length <= titleMaxLength -> originalTitle
+                        else -> {
+                            val result = repository.summarizeText(MODEL_NAME, originalTitle)
+                            val newTitle = result.getOrElse { originalTitle.take(titleMaxLength) }
+                            conversationTitleCache[summary.conversationId] = newTitle
+                            newTitle
+                        }
+                    }
+                    processed += summary.copy(title = finalTitle)
+                }
+                _conversationSummaries.value = processed
             }
         }
     }
