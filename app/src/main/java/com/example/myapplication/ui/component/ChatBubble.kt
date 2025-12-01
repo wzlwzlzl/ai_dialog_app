@@ -10,14 +10,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.myapplication.model.Message
 import com.example.myapplication.model.MessageRole
 
 // 聊天气泡组件（接收单个 Message 对象，自动区分样式）
 @Composable
 fun ChatBubble(message: Message) {
+    // 是否是图片消息：目前约定 AI 且 content 为 Uri/URL 时显示为图片
+    val isImageMessage = message.role == MessageRole.AI &&
+            (message.content.startsWith("content://") ||
+             message.content.startsWith("http://") ||
+             message.content.startsWith("https://"))
+
     // 按角色区分布局方向：用户消息靠右，AI消息靠左
     Row(
         modifier = Modifier
@@ -54,12 +62,23 @@ fun ChatBubble(message: Message) {
                 .padding(12.dp)
                 .widthIn(max = 280.dp)  // 限制气泡最大宽度，避免文字过长
         ) {
-            Text(
-                text = message.content,
-                color = if (message.role == MessageRole.USER) Color.White else Color.Black,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
+            if (isImageMessage) {
+                AsyncImage(
+                    model = message.content,
+                    contentDescription = "AI 生成的图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp, max = 260.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = message.content,
+                    color = if (message.role == MessageRole.USER) Color.White else Color.Black,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
         }
     }
 }

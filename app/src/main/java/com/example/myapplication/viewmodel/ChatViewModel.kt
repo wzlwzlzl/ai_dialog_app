@@ -1,5 +1,6 @@
 package com.example.myapplication.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,8 +28,10 @@ class ChatViewModel(
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // 模型名称使用官方示例中的（确保存在）
+    // 文生文模型
     private val MODEL_NAME = "doubao-seed-1-6-lite-251015"
+    // 文生图模型
+    private val IMAGE_MODEL_NAME = "doubao-seedream-3-0-t2i-250415"
     private val DEFAULT_CONVERSATION_ID = "default"
 
     private var lastSentMessage: String? = null
@@ -40,9 +43,18 @@ class ChatViewModel(
     private val _conversationSummaries = MutableStateFlow<List<ConversationSummary>>(emptyList())
     val conversationSummaries: StateFlow<List<ConversationSummary>> = _conversationSummaries.asStateFlow()
 
+    // 是否处于文生图模式
+    private val _isImageMode = MutableStateFlow(false)
+    val isImageMode: StateFlow<Boolean> = _isImageMode.asStateFlow()
+
     init {
         observeConversation(DEFAULT_CONVERSATION_ID)
         observeConversationSummaries()
+    }
+
+    // 切换文生图模式
+    fun toggleImageMode() {
+        _isImageMode.value = !_isImageMode.value
     }
 
     // 加载历史消息
@@ -71,6 +83,7 @@ class ChatViewModel(
         }
     }
 
+    // 文本对话
     fun sendMessage(content: String) {
         if (content.trim().isEmpty()) return
         lastSentMessage = content
@@ -113,6 +126,51 @@ class ChatViewModel(
                 val errorMsg = result.exceptionOrNull()?.message ?: "调用失败"
                 updateErrorState(newMessages, errorMsg)
                 Log.e("ChatViewModel", "AI调用失败", result.exceptionOrNull())
+            }
+        }
+    }
+
+    // 文生图：使用图片模型生成图片并保存到本地
+    fun sendImage(prompt: String, context: Context) {
+        if (prompt.trim().isEmpty()) return
+        lastSentMessage = prompt
+        val conversationId = _currentConversationId.value
+
+        viewModelScope.launch {
+            val currentState = _uiState.value
+            val currentMessages = when (currentState) {
+                is ChatUiState.Success -> currentState.messages
+                is ChatUiState.Loading -> currentState.messages
+                is ChatUiState.Error -> currentState.messages
+            }
+
+            // 添加用户消息并进入加载状态
+            val userMessage = Message(role = MessageRole.USER, content = prompt)
+            val newMessages = currentMessages + userMessage
+            _uiState.value = ChatUiState.Loading(newMessages)
+
+            // 保存用户消息到本地数据库
+            repository.saveMessage(userMessage, conversationId)
+
+            val result = repository.generateImage(
+                model = IMAGE_MODEL_NAME,
+                prompt = prompt,
+                context = context
+            )
+
+            if (result.isSuccess) {
+                val savedUri = result.getOrThrow()
+                // 这里直接把图片的 Uri 字符串作为消息内容，UI 里根据 content:// 识别并显示图片
+                val aiMessage = Message(
+                    role = MessageRole.AI,
+                    content = savedUri
+                )
+                repository.saveMessage(aiMessage, conversationId)
+                _uiState.value = ChatUiState.Success(newMessages + aiMessage)
+            } else {
+                val errorMsg = result.exceptionOrNull()?.message ?: "调用失败"
+                updateErrorState(newMessages, errorMsg)
+                Log.e("ChatViewModel", "生成图片失败", result.exceptionOrNull())
             }
         }
     }
