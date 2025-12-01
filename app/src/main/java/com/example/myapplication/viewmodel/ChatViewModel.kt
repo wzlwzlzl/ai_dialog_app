@@ -53,7 +53,11 @@ class ChatViewModel(
                 if (messages.isEmpty()) {
                     showWelcomeMessage()
                 } else {
-                    _uiState.value = ChatUiState.Success(messages)
+                    // 如果当前状态是 Loading，不要覆盖它（保持加载状态）
+                    val currentState = _uiState.value
+                    if (currentState !is ChatUiState.Loading) {
+                        _uiState.value = ChatUiState.Success(messages)
+                    }
                 }
             }
         }
@@ -141,7 +145,7 @@ class ChatViewModel(
     private fun updateErrorState(currentMessages: List<Message>, errorMsg: String) {
         val errorMessage = Message(
             role = MessageRole.AI,
-            content = "出错了：$errorMsg"
+            content = "出错了，请检查网络"
         )
         _uiState.value = ChatUiState.Error(
             messages = currentMessages + errorMessage,

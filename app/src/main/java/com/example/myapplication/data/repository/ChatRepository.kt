@@ -107,7 +107,8 @@ class ChatRepository(
 
                 result = Result.success(aiContent)
             } catch (e: Exception) {
-                result = Result.failure(e)
+                //result = Result.failure(e)
+                result = Result.failure(Exception("获取AI回复失败"))
             }
         }
 
