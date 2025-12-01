@@ -49,6 +49,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        drawerState.open()
+    }
+
     val dateFormatter = remember {
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
     }
