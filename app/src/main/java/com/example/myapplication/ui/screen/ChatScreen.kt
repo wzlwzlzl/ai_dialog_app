@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -65,6 +68,15 @@ fun ChatScreen(viewModel: ChatViewModel) {
 
     LaunchedEffect(uiState) {
         if (messageList.isNotEmpty()) {
+            listState.scrollToItem(messageList.lastIndex)
+        }
+    }
+
+    // 监听键盘高度变化：键盘弹出时自动滚动到最后一条消息，避免被遮挡
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > 0 && messageList.isNotEmpty()) {
             listState.scrollToItem(messageList.lastIndex)
         }
     }
@@ -137,7 +149,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (isImageMode) "即梦AI对话(图片生成)" else "即梦AI对话"
+                        text = if (isImageMode) "即梦AI图片生成" else "即梦AI对话"
                     )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
